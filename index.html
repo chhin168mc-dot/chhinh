@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="km">
+<head>
+<meta charset="UTF-8">
+<title>khmer Plugin</title>
+
+<style>
+*{margin:0;padding:0;font-family:Segoe UI,Khmer OS Battambang,sans-serif}
+body{color:#fff;overflow-x:hidden}
+
+/* BACKGROUND ANIMATION */
+.bg{
+  position:fixed;inset:0;z-index:-1;
+  background:linear-gradient(120deg,#000,#1a0f00,#3a2600,#000);
+  background-size:400% 400%;
+  animation:bg 18s ease infinite;
+}
+@keyframes bg{
+  0%{background-position:0% 50%}
+  50%{background-position:100% 50%}
+  100%{background-position:0% 50%}
+}
+
+/* HEADER */
+header{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:20px 50px;
+  backdrop-filter:blur(10px);
+}
+.logo{
+  font-size:28px;
+  color:gold;
+  font-weight:bold;
+}
+.logo span{color:white}
+nav a{
+  color:white;
+  margin-left:25px;
+  text-decoration:none;
+}
+nav a:hover{color:gold}
+
+/* HERO */
+.hero{
+  text-align:center;
+  padding:140px 20px;
+}
+.hero h1{
+  font-size:46px;
+  color:gold;
+  text-shadow:0 0 25px gold;
+}
+.hero p{opacity:.85;margin-top:12px}
+
+/* PLUGINS */
+.plugins{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+  gap:30px;
+  padding:60px;
+}
+.plugin{
+  background:rgba(0,0,0,.55);
+  border:1px solid rgba(255,215,0,.5);
+  border-radius:16px;
+  padding:25px;
+  backdrop-filter:blur(8px);
+  transition:.4s;
+}
+.plugin:hover{
+  transform:translateY(-12px);
+  box-shadow:0 0 30px gold;
+}
+.plugin h3{color:gold}
+.plugin button{
+  margin-top:15px;
+  background:linear-gradient(45deg,gold,#ffae00);
+  border:none;
+  padding:8px 22px;
+  border-radius:8px;
+  cursor:pointer;
+  font-weight:bold;
+}
+
+/* MODAL LOGIN */
+.modal{
+  display:none;
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,.7);
+  justify-content:center;
+  align-items:center;
+}
+.box{
+  background:#0f0f0f;
+  border:1px solid gold;
+  padding:30px;
+  border-radius:14px;
+}
+.box h2{color:gold;margin-bottom:15px}
+.box input{
+  width:260px;
+  padding:8px;
+  margin:8px 0;
+}
+
+/* ADMIN */
+.admin{
+  display:none;
+  padding:50px;
+}
+.admin input{
+  display:block;
+  margin:10px 0;
+}
+</style>
+</head>
+
+<body>
+<div class="bg"></div>
+
+<header>
+  <div class="logo">KHMER<span>PLUGIN</span></div>
+  <nav>
+    <a href="#">ទំព័រដើម</a>
+    <a href="#">Plugin</a>
+    <a href="#" onclick="openLogin()">Admin</a>
+  </nav>
+</header>
+
+<section class="hero">
+  <h1>វេបសាយ Plugin Minecraft</h1>
+  <p>ដោនលឿន • សុវត្ថិភាព • Plugin Style</p>
+</section>
+
+<section class="plugins" id="pluginList">
+  <div class="plugin">
+    <h3>EconomyPro</h3>
+    <p>ប្រព័ន្ធសេដ្ឋកិច្ចកម្រិតខ្ពស់</p>
+    <button disabled>Admin បន្ថែម Plugin</button>
+  </div>
+</section>
+
+<!-- LOGIN -->
+<div class="modal" id="loginModal">
+  <div class="box">
+    <h2>Admin Login</h2>
+    <input id="email" placeholder="Email">
+    <input id="password" type="password" placeholder="Password">
+    <button onclick="login()">ចូលប្រព័ន្ធ</button>
+  </div>
+</div>
+
+<!-- ADMIN PANEL -->
+<section class="admin" id="adminPanel">
+  <h2 style="color:gold">Admin Upload Plugin</h2>
+  <input id="pname" placeholder="ឈ្មោះ Plugin">
+  <input id="pdesc" placeholder="ពណ៌នា Plugin">
+  <input id="pfile" type="file" accept=".jar">
+  <button onclick="upload()">Upload Plugin</button>
+</section>
+
+<script>
+/* BACKGROUND INTERACTIVE */
+document.addEventListener("mousemove",e=>{
+  document.querySelector(".bg").style.backgroundPosition=
+  `${e.clientX/window.innerWidth*100}% ${e.clientY/window.innerHeight*100}%`;
+});
+
+/* LOGIN */
+function openLogin(){
+  document.getElementById("loginModal").style.display="flex";
+}
+
+function login(){
+  const email=document.getElementById("email").value;
+  const pw=document.getElementById("password").value;
+
+  if(email==="chhinffmc@gmail.com" && pw==="As1122AsChhin"){
+    alert("Login ជោគជ័យ");
+    document.getElementById("loginModal").style.display="none";
+    document.getElementById("adminPanel").style.display="block";
+  }else{
+    alert("Email ឬ Password មិនត្រឹមត្រូវ");
+  }
+}
+
+/* UPLOAD + DOWNLOAD REAL (.jar) */
+function upload(){
+  const name=pname.value;
+  const desc=pdesc.value;
+  const file=pfile.files[0];
+
+  if(!name||!desc||!file) return alert("សូមបំពេញឲ្យครบ");
+
+  const url=URL.createObjectURL(file);
+
+  const div=document.createElement("div");
+  div.className="plugin";
+  div.innerHTML=`
+    <h3>${name}</h3>
+    <p>${desc}</p>
+    <a href="${url}" download="${file.name}">
+      <button>⬇ ដោន Plugin</button>
+    </a>
+  `;
+  document.getElementById("pluginList").appendChild(div);
+}
+</script>
+</body>
+</html>

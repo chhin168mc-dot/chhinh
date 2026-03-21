@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Plugin Scanner</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+<style>
+body{margin:0;font-family:Arial;background:#f5f5f5;}
+.header{
+    background:linear-gradient(90deg,#4facfe,#ff2ea6);
+    color:white;text-align:center;padding:35px;font-size:30px;
+}
+.drop{
+    margin:30px auto;width:70%;background:white;padding:40px;
+    border-radius:15px;text-align:center;border:2px dashed #ccc;cursor:pointer;
+}
+.info{width:85%;margin:auto;font-size:16px;}
+
+.box{width:85%;margin:15px auto;padding:20px;border-radius:10px;}
+.tag{padding:5px 10px;color:white;font-weight:bold;border-radius:5px;}
+
+.back{background:#ffe6e6;border-left:6px solid #ffae97;}
+.back .tag{background:#ffae97;}
+
+.danger{background:#ffe6e6;border-left:6px solid #000666;}
+.danger .tag{background:#000666;}
+
+.moderate{background:#fff5cc;border-left:6px solid #ffaa00;}
+.moderate .tag{background:#ffaa00;}
+
+.safe{background:#e6ffed;border-left:6px solid #00b894;}
+.safe .tag{background:#00b894;}
+
+.small{font-size:13px;color:#555;}
+
+.logo-img { 
+    width: 50px; 
+    filter: drop-shadow(0 5px 8px rgba(0,0,0,0.3)); 
+    animation: heartbeat 1.5s infinite; 
+}
+@keyframes heartbeat { 
+    0%, 100% { transform: scale(1); } 
+    50% { transform: scale(1.5); } 
+}
+
+
+/* Sidebar Style */
+.sidebar {
+    position: fixed;
+    top: 0;
+    left: -250px; /* លាក់ទៅឆ្វេង */
+    width: 250px;
+    height: 100%;
+    background: #fff;
+    z-index: 1000;
+    transition: 0.3s;
+    box-shadow: 2px 0 10px rgba(0,0,0,0.9);
+}
+.sidebar.active {
+    left: 0; /* បង្ហាញមកវិញ */
+}
+.sidebar-header {
+    padding: 20px;
+    background: #f7931a;
+    display: flex;
+    justify-content: space-between;
+    font-weight: bold;
+}
+.menu-item {
+    padding: 15px 20px;
+    border-bottom: 1px solid #00ff00;
+    cursor: pointer;
+}
+.menu-item:hover {
+    background: #00ff00;
+    color: #f7931a;
+}
+/* Overlay */
+.overlay {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(0,0,0,0.1);
+    display: none;
+    z-index: 999;
+}
+.overlay.active {
+    display: block;
+}
+</style>
+</head>
+
+<body>
+
+<h1><div class="header"><img src="tool.jpg" class="logo-img" alt="TOOLS Logo - Minecraft"> SCAN PLUGIN <img src="tool.jpg" class="logo-img" alt="TOOLS Logo - Minecraft"><span style="cursor:pointer" onclick="toggleMenu()">☰</span></div></h1>
+
+<!-- កែប្រែក្នុង Sidebar Menu -->
+<div id="sidebar" class="sidebar">
+    <div class="sidebar-header">
+        <span>MENU</span>
+        <span style="cursor:pointer" onclick="toggleMenu()">✕</span>
+    </div>
+    
+    <!-- ចុចទៅកាន់ទំព័រ home.html -->
+    <div class="menu-item" onclick="location.href='index.html'">🏠 Home</div>
+    
+    <!-- ចុចទៅកាន់ទំព័រ help.html (បើមាន) -->
+    <div class="menu-item" onclick="location.href='https://t.me/vichhin168'">❓ Help</div>
+    
+    <div class="menu-item" style="opacity:0.5; cursor:not-allowed;">⏳ Soon...</div>
+</div>
+
+
+<!-- Overlay សម្រាប់បិទ Menu ពេលចុចខាងក្រៅ -->
+<div id="overlay" class="overlay" onclick="toggleMenu()"></div>
+
+
+
+<h3><div class="drop" id="drop">📦 UPLOAD PLUGIN.JAR</div></h3>
+
+<div class="info" id="info"></div>
+<div id="result"></div>
+
+<script>
+const drop = document.getElementById("drop");
+const result = document.getElementById("result");
+const info = document.getElementById("info");
+
+drop.onclick = () => {
+    let input=document.createElement("input");
+    input.type="file";
+    input.accept=".jar";
+    input.onchange=e=>scan(e.target.files[0]);
+    input.click();
+};
+
+drop.addEventListener("dragover",e=>e.preventDefault());
+drop.addEventListener("drop",e=>{
+    e.preventDefault();
+    scan(e.dataTransfer.files[0]);
+});
+
+async function scan(file){
+    if(!file || !file.name.endsWith(".jar")){
+        alert("Upload .jar only");
+        return;
+    }
+
+    result.innerHTML="";
+    info.innerHTML="Scanning...";
+
+    const zip = await JSZip.loadAsync(file);
+    let back=[], danger=[], moderate=[], safe=[];
+
+    for(let name in zip.files){
+
+        if(!name.endsWith(".class")) continue;
+
+        let content = await zip.files[name].async("string");
+        
+        
+        // 🌐 Runtime
+        if(name.includes("debugger") || name.includes("Debugger$1")){
+            back.push(`Backdoor debugger detected 💀<br><span class="small">${name}</span>`);
+            continue;
+        }
+        
+        if(content.includes("Runtime") && content.includes("exec")){
+            danger.push(`Exec command (Remote control)<br><span class="small">${name}</span>`);
+            continue;
+        }
+
+        if(content.includes("ProcessBuilder")){
+            danger.push(`ProcessBuilder (run system command)<br><span class="small">${name}</span>`);
+            continue;
+        }
+
+        if(content.includes("http://") || content.includes("https://")){
+            danger.push(`External server connection 🌐<br><span class="small">${name}</span>`);
+            continue;
+        }
+
+        // 🟡 MODERATE
+        if(content.includes("Base64")){
+            moderate.push(`Encoded code (hidden)<br><span class="small">${name}</span>`);
+            continue;
+        }
+
+        if(content.includes("ClassLoader")){
+            moderate.push(`Dynamic class loading<br><span class="small">${name}</span>`);
+            continue;
+        }
+
+        if(name.length < 25){
+            moderate.push(`Obfuscation suspected<br><span class="small">${name}</span>`);
+            continue;
+        }
+
+        // 🟢 SAFE
+        safe.push(`Normal class<br><span class="small">${name}</span>`);
+    }
+
+    info.innerHTML = `📄 File: <b>${file.name}</b>`;
+
+    render(back, danger, moderate, safe);
+}
+
+function render(back, danger, moderate, safe){
+    
+    let html="";
+    
+    if(back.length){
+        html += `<div class="box back">
+        <div class="tag">Backdoor Code</div><br>
+        ${back.join("<br><br>")}
+        </div>`;
+    }
+    
+    if(danger.length){
+        html += `<div class="box danger">
+        <div class="tag">RUNTIME</div><br>
+        ${danger.join("<br><br>")}
+        </div>`;
+    }
+
+    if(moderate.length){
+        html += `<div class="box moderate">
+        <div class="tag">MODERATE</div><br>
+        ${moderate.join("<br><br>")}
+        </div>`;
+    }
+
+    if(safe.length){
+        html += `<div class="box safe">
+        <div class="tag">SAFE</div><br>
+        ${safe.join("<br><br>")}
+        </div>`;
+    }
+
+    if(!danger.length && !moderate.length){
+        html += `<div class="box safe">
+        <div class="tag">SAFE</div><br>
+        Plugin looks clean ✅
+        </div>`;
+    }
+
+    result.innerHTML = html;
+}
+
+
+function toggleMenu() {
+    document.getElementById("sidebar").classList.toggle("active");
+    document.getElementById("overlay").classList.toggle("active");
+}
+</script>
+
+</body>
+</html>

@@ -1,9 +1,9 @@
 const mineflayer = require('mineflayer')
 
 const bot = mineflayer.createBot({
-  host: 'nokormc.xyz', // ដាក់ IP server
-  port: 16800,           // port (default 25565)
-  username: 'Bot_Nokor',   // ឈ្មោះ bot
+  host: 'sg.apsara.lol', // ដាក់ IP server
+  port: 62131,           // port (default 25565)
+  username: 'Bot_168',   // ឈ្មោះ bot
   version: true        // auto detect version
 })
 

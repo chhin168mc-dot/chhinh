@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="km">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="google-site-verification" content="LxTn3p--nSRJUqwmrRvPX5JTNzt-cLcNpxFBZekC9WM" />
+    <title>COOKIE-MC || VOTE</title>
+    <link rel="icon" href="/public/cookiemc.jpg">
+    <link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:wght@500;600;700&family=Noto+Sans+Khmer:wght@500;600;700&family=Press+Start+2P&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: url('/public/background.webp') no-repeat center center fixed;
+            background-size: cover;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+        }
+        .overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            z-index: 1;
+        }
+        .box {
+            position: relative;
+            z-index: 2;
+            background: rgba(20, 30, 48, 0.85);
+            padding: 30px;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 400px;
+            text-align: center;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.5);
+            backdrop-filter: blur(5px);
+        }
+        h2 { margin-bottom: 10px; color: #f1c40f; text-transform: uppercase; letter-spacing: 1px; }
+        #cooldown-display {
+            background: rgba(231, 76, 60, 0.2);
+            border: 1px solid #e74c3c;
+            color: #ff6b6b;
+            padding: 8px;
+            border-radius: 5px;
+            font-weight: bold;
+            font-size: 0.95em;
+            margin-bottom: 20px;
+        }
+        .input-group { text-align: left; margin-bottom: 15px; }
+        label { font-size: 0.85em; color: #bdc3c7; display: block; margin-bottom: 5px; }
+        input, select {
+            width: 100%;
+            padding: 12px;
+            border-radius: 6px;
+            border: 1px solid #4e5d6c;
+            background: #2c3e50;
+            color: white;
+            font-size: 1em;
+            outline: none;
+        }
+        input:focus, select:focus { border-color: #3498db; }
+        
+        .platform-container {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .platform-card {
+            flex: 1;
+            background: #2c3e50;
+            border: 2px solid #4e5d6c;
+            border-radius: 8px;
+            padding: 10px;
+            cursor: pointer;
+            text-align: center;
+            transition: 0.3s;
+        }
+        .platform-card img { width: 32px; height: 32px; display: block; margin: 0 auto 5px auto; }
+        .platform-card span { font-size: 0.9em; font-weight: bold; }
+        .platform-card.active {
+            border-color: #2ecc71;
+            background: rgba(46, 204, 113, 0.15);
+        }
+
+        button.vote-btn {
+            width: 100%;
+            padding: 12px;
+            background: #27ae60;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 1.1em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.3s;
+            text-transform: uppercase;
+        }
+        button.vote-btn:disabled { background: #7f8c8d; cursor: not-allowed; opacity: 0.7; }
+        button.vote-btn:hover:not(:disabled) { background: #2ecc71; }
+        #message { margin-top: 15px; font-size: 0.9em; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="overlay"></div>
+
+<div class="box">
+    <h2>COOKIEMC VOTE</h2>
+    <div id="cooldown-display">កំពុងពិនិត្យ Cooldown...</div>
+
+    <div class="input-group">
+        <label>Username ក្នុងហ្គេម</label>
+        <input type="text" id="username" placeholder="បញ្ចូលឈ្មោះរបស់អ្នក" oninput="validateForm()">
+    </div>
+
+    <div class="input-group">
+        <label>Gamemode</label>
+        <select id="gamemode" onchange="validateForm()">
+            <option value="" selected disabled>-- ជ្រើសរើស Gamemode --</option>
+            <option value="ECONOMYSMP">ECONOMYSMP</option>
+        </select>
+    </div>
+
+    <div class="input-group">
+        <label>ប្រភេទហ្គេម (Java ឬ Bedrock)</label>
+        <div class="platform-container">
+            <div class="platform-card" id="card-java" onclick="selectPlatform('java')">
+                <img src="/public/java.png" alt="Java">
+                <span>Java</span>
+            </div>
+            <div class="platform-card" id="card-bedrock" onclick="selectPlatform('bedrock')">
+                <img src="/public/bedrock.png" alt="Bedrock">
+                <span>Bedrock</span>
+            </div>
+        </div>
+    </div>
+
+    <button id="vote-btn" class="vote-btn" onclick="submitVote()" disabled>VOTE CONFIRM</button>
+    <p id="message"></p>
+</div>
+
+<script>
+    let selectedPlatform = '';
+    let cooldownEnd = 0;
+    
+    // បង្កើត Unique Client Key ទុកក្នុង localStorage ដើម្បីទប់ស្កាត់ការប្តូរ App / បិទបើកទូរស័ព្ទ
+    let clientKey = localStorage.getItem('vote_ck');
+    if (!clientKey) {
+        clientKey = 'ck_' + Math.random().toString(36).substring(2) + Date.now();
+        localStorage.setItem('vote_ck', clientKey);
+    }
+
+    // ពិនិត្យ Cooldown ពេលចូលវេបសាយដំបូង
+    async function checkCooldown() {
+        try {
+            // ឆែកទាំង localStorage ផ្ទាល់ខ្លួនផង និង Server ផង
+            const localEnd = parseInt(localStorage.getItem('vote_cooldown') || '0');
+            const res = await fetch(`/api/cooldown?ck=${clientKey}`);
+            const data = await res.json();
+            
+            const serverEnd = data.cooldownEnd || 0;
+            cooldownEnd = Math.max(localEnd, serverEnd);
+
+            if (cooldownEnd > Date.now()) {
+                startTimer();
+            } else {
+                document.getElementById('cooldown-display').innerText = "អ្នកអាច Vote បានឥឡូវនេះ!";
+                validateForm();
+            }
+        } catch (e) {
+            document.getElementById('cooldown-display').innerText = "មិនអាចភ្ជាប់ទៅកាន់ Server បានទេ";
+        }
+    }
+
+    function selectPlatform(platform) {
+        selectedPlatform = platform;
+        document.getElementById('card-java').classList.remove('active');
+        document.getElementById('card-bedrock').classList.remove('active');
+        document.getElementById('card-platform-' + platform); // dummy selector check
+        
+        if (platform === 'java') {
+            document.getElementById('card-java').classList.add('active');
+            let uname = document.getElementById('username').value.trim();
+            // បើជ្រើស Java គឺលុបសញ្ញា "." ចេញ
+            if (uname.startsWith('.')) {
+                document.getElementById('username').value = uname.substring(1);
+            }
+        } else {
+            document.getElementById('card-bedrock').classList.add('active');
+            let uname = document.getElementById('username').value.trim();
+            // បើជ្រើស Bedrock គឺ auto បន្ថែម "." ពីមុខបើរត់អត់ទាន់មាន
+            if (uname && !uname.startsWith('.')) {
+                document.getElementById('username').value = '.' + uname;
+            }
+        }
+        validateForm();
+    }
+
+    // Input listener ពេលវាយអក្សរ
+    document.getElementById('username').addEventListener('input', function() {
+        let val = this.value.trim();
+        if (selectedPlatform === 'bedrock' && val && !val.startsWith('.')) {
+            this.value = '.' + val;
+        } else if (selectedPlatform === 'java' && val.startsWith('.')) {
+            this.value = val.substring(1);
+        }
+        validateForm();
+    });
+
+    function validateForm() {
+        const username = document.getElementById('username').value.trim();
+        const gamemode = document.getElementById('gamemode').value;
+        const btn = document.getElementById('vote-btn');
+
+        if (cooldownEnd > Date.now()) {
+            btn.disabled = true;
+            return;
+        }
+
+        if (username !== "" && gamemode !== "" && selectedPlatform !== "") {
+            btn.disabled = false;
+        } else {
+            btn.disabled = true;
+        }
+    }
+
+    function startTimer() {
+        const display = document.getElementById('cooldown-display');
+        const btn = document.getElementById('vote-btn');
+        btn.disabled = true;
+
+        const interval = setInterval(() => {
+            const now = Date.now();
+            const distance = cooldownEnd - now;
+
+            if (distance <= 0) {
+                clearInterval(interval);
+                display.innerText = "អ្នកអាច Vote បានឥឡូវនេះ!";
+                cooldownEnd = 0;
+                localStorage.removeItem('vote_cooldown');
+                validateForm();
+            } else {
+                const h = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                const m = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+                const s = Math.floor((distance % (1000 * 60)) / 1000);
+                display.innerText = `រង់ចាំ Cooldown: ${h}ម៉ោង ${m}នាទី ${s}វិនាទី`;
+            }
+        }, 1000);
+    }
+
+    async function submitVote() {
+        const username = document.getElementById('username').value.trim();
+        const gamemode = document.getElementById('gamemode').value;
+        const message = document.getElementById('message');
+        const btn = document.getElementById('vote-btn');
+
+        btn.disabled = true;
+        message.style.color = "white";
+        message.innerText = "កំពុងបញ្ជូនសំណើទៅកាន់ Server...";
+
+        try {
+            const res = await fetch('/api/vote', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, gamemode, platform: selectedPlatform, clientKey })
+            });
+
+            const data = await res.json();
+
+            if (res.ok) {
+                message.style.color = "#2ecc71";
+                message.innerText = "Vote ទទួលបានជោគជ័យ! អ្នកបានទទួល 1x Vote Keys.";
+                cooldownEnd = data.cooldownEnd;
+                localStorage.setItem('vote_cooldown', cooldownEnd);
+                startTimer();
+            } else {
+                message.style.color = "#e74c3c";
+                message.innerText = data.error || "មានបញ្តាក្នុងការ Vote";
+                btn.disabled = false;
+            }
+        } catch (e) {
+            message.style.color = "#e74c3c";
+            message.innerText = "មិនអាចភ្ជាប់ទៅកាន់ Server បានទេ!";
+            btn.disabled = false;
+        }
+    }
+
+    checkCooldown();
+</script>
+</body>
+</html>

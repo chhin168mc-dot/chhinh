@@ -29,90 +29,94 @@ jobs:
         with:
           gradle-version: "8.14.5"
 
+      - name: Check submodules
+        run: |
+          for d in glfw mojoexec sdl NoBlocklist; do
+            if [ -z "$(ls -A $d 2>/dev/null)" ]; then
+              echo "::error::Submodule '$d' is empty. Add it to the repo (git submodule add) before building."
+              exit 1
+            fi
+          done
+
+      # Renderer libraries (same as the upstream workflow)
+      - name: Get LTW
+        uses: dawidd6/action-download-artifact@v6
+        continue-on-error: true
+        with:
+          repo: MojoLauncher/LTW
+          workflow: android.yml
+          workflow_conclusion: success
+          name: output-aar
+          path: app_mojo/libs
+
+      - name: Get Mesa
+        uses: dawidd6/action-download-artifact@v6
+        continue-on-error: true
+        with:
+          repo: CopperLauncher/Mesa-AAR-Builder
+          workflow: build-aar.yml
+          workflow_conclusion: success
+          name: mesa.aar
+          path: app_mojo/libs
+
       - name: Create output directory
         run: mkdir -p out
 
-      # Build debug APK (always)
       - name: Build Debug APK
         run: |
-          ./gradlew :app_mojo:assembleFullDebug || gradle :app_mojo:assembleFullDebug
-          find app_mojo/build/outputs/apk -name "*.apk" -exec cp {} out/ \; || true
-          ls -lh out/ || true
+          ./gradlew :app_mojo:assembleFullDebug
+          find app_mojo/build/outputs/apk -name "*.apk" -exec cp {} out/ \;
+          ls -lh out/
 
-      # Build release APK if possible (unsigned if no keystore)
       - name: Build Release APK (unsigned fallback)
         continue-on-error: true
         run: |
-          ./gradlew :app_mojo:assembleFullRelease || gradle :app_mojo:assembleFullRelease || true
-          find app_mojo/build/outputs/apk -name "*release*.apk" -exec cp {} out/ \; || true
+          ./gradlew :app_mojo:assembleFullRelease
+          find app_mojo/build/outputs/apk -name "*release*.apk" -exec cp {} out/ \;
 
       - name: List built artifacts
         run: |
-          echo "=== Built files ==="
           find out -type f -ls || true
-          find app_mojo/build/outputs -name "*.apk" -o -name "*.aab" | head -20 || true
 
-      # Create full source zip and split into 3 parts (20MB + 20MB + 10MB)
-      - name: Create source zip and split into 3 parts
+      # Source zip split into 3 raw parts. Rejoin with:
+      #   cat NokorClient-Android.part1.zip NokorClient-Android.part2.zip NokorClient-Android.part3.zip > full.zip
+      - name: Create source zip and split
         run: |
-          # Exclude build intermediates and .git to keep size reasonable
           zip -9 -qr out/NokorClient-source.zip . \
-            -x "*.git*" \
-            -x "*build/*" \
-            -x "*.gradle/*" \
-            -x "*local.properties" \
-            -x "*out/*" \
-            -x "*.idea/*" \
-            -x "*captures/*" \
-            -x "*app_mojo/build/*" || true
-
-          # If the zip is still too big, include more exclusions or just zip the important parts
-          if [ ! -f out/NokorClient-source.zip ]; then
-            zip -9 -qr out/NokorClient-source.zip app_mojo README.md LICENSE .github
-          fi
+            -x ".git/*" \
+            -x "*/build/*" "build/*" \
+            -x ".gradle/*" "*/.gradle/*" \
+            -x "*/.cxx/*" \
+            -x "local.properties" \
+            -x "out/*" \
+            -x ".idea/*" \
+            -x "captures/*"
 
           ls -lh out/NokorClient-source.zip
 
-          # Split into exactly 3 parts: 20MB, 20MB, remaining (~10MB)
-          split -b 20M out/NokorClient-source.zip out/NokorClient-Android.part.
-          # Rename for clarity
-          mv out/NokorClient-Android.part.aa out/NokorClient-Android.part1.zip
-          mv out/NokorClient-Android.part.ab out/NokorClient-Android.part2.zip
-          mv out/NokorClient-Android.part.ac out/NokorClient-Android.part3.zip 2>/dev/null || true
-
-          # If only 2 parts were created (smaller project), create empty third or adjust
-          ls -lh out/NokorClient-Android.part*.zip || ls -lh out/
+          split -b 20M -d -a 1 out/NokorClient-source.zip out/NokorClient-Android.part
+          i=1
+          for f in out/NokorClient-Android.part[0-9]; do
+            mv "$f" "out/NokorClient-Android.part${i}.zip"
+            i=$((i+1))
+          done
+          ls -lh out/NokorClient-Android.part*.zip
 
       - name: Upload APK artifacts
         uses: actions/upload-artifact@v4
         with:
           name: nokorclient-apk
-          path: |
-            out/*.apk
+          path: out/*.apk
           if-no-files-found: ignore
 
-      - name: Upload Split Zip Part 1 (20MB)
+      - name: Upload split zip parts
         uses: actions/upload-artifact@v4
         with:
-          name: NokorClient-Android.part1
-          path: out/NokorClient-Android.part1.zip
+          name: NokorClient-Android-parts
+          path: out/NokorClient-Android.part*.zip
           if-no-files-found: ignore
 
-      - name: Upload Split Zip Part 2 (20MB)
-        uses: actions/upload-artifact@v4
-        with:
-          name: NokorClient-Android.part2
-          path: out/NokorClient-Android.part2.zip
-          if-no-files-found: ignore
-
-      - name: Upload Split Zip Part 3 (remaining)
-        uses: actions/upload-artifact@v4
-        with:
-          name: NokorClient-Android.part3
-          path: out/NokorClient-Android.part3.zip
-          if-no-files-found: ignore
-
-      - name: Upload full source zip (if under limit)
+      - name: Upload full source zip
         uses: actions/upload-artifact@v4
         with:
           name: NokorClient-source-full

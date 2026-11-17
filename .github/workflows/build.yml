@@ -18,6 +18,14 @@ jobs:
         with:
           submodules: true
 
+      - name: Restore source tree from split archive
+        run: |
+          cat NokorClient-Android.part[0-9].zip > "$RUNNER_TEMP/NokorClient-source.zip"
+          mkdir -p "$RUNNER_TEMP/nokorclient-source"
+          unzip -q "$RUNNER_TEMP/NokorClient-source.zip" -d "$RUNNER_TEMP/nokorclient-source"
+          cp -a "$RUNNER_TEMP/nokorclient-source/." .
+          test -f gradlew || { echo "::error::gradlew was not found after restoring the source archive"; exit 1; }
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -40,10 +48,9 @@ jobs:
           clone https://github.com/MojoLauncher/MojoSDL sdl
           clone https://github.com/MojoLauncher/NoBlocklist NoBlocklist
           for d in glfw mojoexec sdl NoBlocklist; do
-            test -n "$(ls -A $d)" || { echo "::error::$d is empty"; exit 1; }
+            test -n "$(ls -A "$d")" || { echo "::error::$d is empty"; exit 1; }
           done
 
-      # Renderer libraries (same as the upstream workflow)
       - name: Get LTW
         uses: dawidd6/action-download-artifact@v6
         continue-on-error: true
@@ -85,8 +92,6 @@ jobs:
         run: |
           find out -type f -ls || true
 
-      # Source zip split into 3 raw parts. Rejoin with:
-      #   cat NokorClient-Android.part1.zip NokorClient-Android.part2.zip NokorClient-Android.part3.zip > full.zip
       - name: Create source zip and split
         run: |
           zip -9 -qr out/NokorClient-source.zip . \
@@ -96,6 +101,7 @@ jobs:
             -x "*/.cxx/*" \
             -x "local.properties" \
             -x "out/*" \
+            -x "NokorClient-Android.part*.zip" \
             -x ".idea/*" \
             -x "captures/*"
 

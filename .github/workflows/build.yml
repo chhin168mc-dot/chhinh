@@ -1,4 +1,4 @@
-name: Build APK from ZIP
+name: BUILD APK TO ZIP
 
 on:
   push:
@@ -22,8 +22,14 @@ jobs:
         run: |
           ZIP=$(ls -t *.zip | head -n 1)
           echo "Using $ZIP"
+          
+          # យកឈ្មោះ zip (គ្មាន .zip)
+          ZIP_NAME=$(basename "$ZIP" .zip)
+          echo "ZIP_NAME=$ZIP_NAME" >> "$GITHUB_ENV"
+          
           mkdir -p work
           unzip -q -o "$ZIP" -d work
+          
           # រក folder ដែលមាន settings.gradle.kts
           PROJ=$(dirname "$(find work -name settings.gradle.kts -not -path '*/node_modules/*' | head -n 1)")
           echo "PROJECT_DIR=$PROJ" >> "$GITHUB_ENV"
@@ -50,21 +56,28 @@ jobs:
       - name: Read app version
         id: ver
         working-directory: ${{ env.PROJECT_DIR }}
-        run: echo "name=$(grep -oP 'val appVersion = "\K[^"]+' app/build.gradle.kts)" >> "$GITHUB_OUTPUT"
+        run: |
+          # សាកមើល version ពី build.gradle.kts (បើគ្មាន ប្រើ 1.0.0)
+          VER=$(grep -oP 'val appVersion = "\K[^"]+' app/build.gradle.kts 2>/dev/null || echo "1.0.0")
+          echo "name=$VER" >> "$GITHUB_OUTPUT"
+          echo "Version: $VER"
 
       - name: Prepare APK
-        run: cp "${{ env.PROJECT_DIR }}/app/build/outputs/apk/debug/app-debug.apk" GameSpace.apk
+        run: |
+          cp "${{ env.PROJECT_DIR }}/app/build/outputs/apk/debug/app-debug.apk" "${{ env.ZIP_NAME }}.apk"
+          ls -lh "${{ env.ZIP_NAME }}.apk"
 
       - name: Upload APK (Actions → Artifacts)
         uses: actions/upload-artifact@v4
         with:
-          name: GameSpace-apk
-          path: GameSpace.apk
+          name: ${{ env.ZIP_NAME }}-apk
+          path: ${{ env.ZIP_NAME }}.apk
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.ver.outputs.name }}
-          name: GameSpace ${{ steps.ver.outputs.name }}
-          files: GameSpace.apk
+          name: ${{ env.ZIP_NAME }} ${{ steps.ver.outputs.name }}
+          files: ${{ env.ZIP_NAME }}.apk
           make_latest: true
+          generate_release_notes: true

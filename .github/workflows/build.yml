@@ -19,12 +19,38 @@ jobs:
           submodules: true
 
       - name: Restore source tree from split archive
+        shell: bash
         run: |
+          set -Eeuo pipefail
+
           cat NokorClient-Android.part[0-9].zip > "$RUNNER_TEMP/NokorClient-source.zip"
           mkdir -p "$RUNNER_TEMP/nokorclient-source"
           unzip -q "$RUNNER_TEMP/NokorClient-source.zip" -d "$RUNNER_TEMP/nokorclient-source"
-          cp -a "$RUNNER_TEMP/nokorclient-source/." .
-          test -f gradlew || { echo "::error::gradlew was not found after restoring the source archive"; exit 1; }
+
+          extracted_root="$RUNNER_TEMP/nokorclient-source"
+          if [ -f "$extracted_root/gradlew" ]; then
+            cp -a "$extracted_root/." .
+          elif [ -d "$extracted_root/NokorClient-Android" ]; then
+            cp -a "$extracted_root/NokorClient-Android/." .
+          else
+            found_gradlew="$(find "$extracted_root" -maxdepth 4 -type f -name gradlew | head -n 1 || true)"
+            if [ -n "$found_gradlew" ]; then
+              project_root="$(dirname "$found_gradlew")"
+              cp -a "$project_root/." .
+            else
+              echo "::error::gradlew was not found after restoring the source archive"
+              echo "Extracted tree dump:"
+              find "$extracted_root" -maxdepth 4 -print | head -n 200 || true
+              exit 1
+            fi
+          fi
+
+          test -f gradlew || {
+            echo "::error::gradlew still missing after restore"
+            echo "Workspace dump:"
+            find . -maxdepth 3 -name gradlew -print || true
+            exit 1
+          }
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4

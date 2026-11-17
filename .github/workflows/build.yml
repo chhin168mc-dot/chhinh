@@ -29,13 +29,18 @@ jobs:
         with:
           gradle-version: "8.14.5"
 
-      - name: Check submodules
+      - name: Clone submodules manually
         run: |
+          clone() {
+            rm -rf "$2"
+            git clone --depth 1 "$1" "$2"
+          }
+          clone https://github.com/MojoLauncher/glfw glfw
+          clone https://github.com/MojoLauncher/mojoexec mojoexec
+          clone https://github.com/MojoLauncher/MojoSDL sdl
+          clone https://github.com/MojoLauncher/NoBlocklist NoBlocklist
           for d in glfw mojoexec sdl NoBlocklist; do
-            if [ -z "$(ls -A $d 2>/dev/null)" ]; then
-              echo "::error::Submodule '$d' is empty. Add it to the repo (git submodule add) before building."
-              exit 1
-            fi
+            test -n "$(ls -A $d)" || { echo "::error::$d is empty"; exit 1; }
           done
 
       # Renderer libraries (same as the upstream workflow)
@@ -83,7 +88,7 @@ jobs:
       - name: Create source zip and split
         run: |
           zip -9 -qr out/NokorClient-source.zip . \
-            -x ".git/*" \
+            -x ".git/*" "*/.git/*" \
             -x "*/build/*" "build/*" \
             -x ".gradle/*" "*/.gradle/*" \
             -x "*/.cxx/*" \

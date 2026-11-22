@@ -1,0 +1,31 @@
+name: Node.js & HTML Test
+
+# ដំណើរការរាល់ពេលមានការ Push ឬ Pull Request ទៅកាន់ Branch main
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      # ១. ទាញយកកូដពី GitHub
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # ២. ដំឡើង Node.js
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # ៣. ដំឡើង Packages (Express)
+      - name: Install dependencies
+        run: npm install
+
+      # ៤. ដំណើរការ Test (Run test.js)
+      - name: Run Automated Test
+        run: npm test

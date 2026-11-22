@@ -4,9 +4,14 @@ const { spawn } = require('child_process');
 // ចាប់ផ្តើមបើក Server
 const server = spawn('node', ['server.js']);
 
-setTimeout(() => {
-    // តេស្តទី ១៖ ពិនិត្យមើលទំព័រ HTML (/)
-    http.get('http://localhost:3000', (res) => {
+// បង្ហាញ Error ប្រសិនបើ server.js មានបញ្ហា
+server.stderr.on('data', (data) => {
+    console.error(`Server Error: ${data}`);
+});
+
+function runTest(retries = 5) {
+    // ប្រើ 127.0.0.1 ជំនួស localhost ដើម្បីចៀសវាងបញ្ហា IPv6 លើ Ubuntu
+    http.get('http://127.0.0.1:3000', (res) => {
         if (res.statusCode !== 200) {
             console.error('❌ បរាជ័យ៖ មិនអាចបើកទំព័រ HTML បានទេ');
             server.kill();
@@ -15,7 +20,7 @@ setTimeout(() => {
         console.log('✅ ជោគជ័យ៖ ទំព័រ HTML ដំណើរការធម្មតា (Status 200)');
 
         // តេស្តទី ២៖ ពិនិត្យមើល API (/api/hello)
-        http.get('http://localhost:3000/api/hello', (apiRes) => {
+        http.get('http://127.0.0', (apiRes) => {
             let data = '';
             apiRes.on('data', chunk => data += chunk);
             apiRes.on('end', () => {
@@ -23,7 +28,7 @@ setTimeout(() => {
                 if (apiRes.statusCode === 200 && json.message) {
                     console.log('✅ ជោគជ័យ៖ API ដំណើរការធម្មតា ->', json.message);
                     server.kill();
-                    process.exit(0); // បញ្ចប់ដោយជោគជ័យ
+                    process.exit(0);
                 } else {
                     console.error('❌ បរាជ័យ៖ API មានបញ្ហា');
                     server.kill();
@@ -32,9 +37,16 @@ setTimeout(() => {
             });
         });
     }).on('error', (err) => {
-        console.error('❌ Server មិនដំណើរការ៖', err.message);
-        server.kill();
-        process.exit(1);
+        // ព្យាយាមភ្ជាប់ម្តងទៀតរៀងរាល់ ១ វិនាទី ប្រសិនបើ Server មិនទាន់បើករួច
+        if (retries > 0) {
+            setTimeout(() => runTest(retries - 1), 1000);
+        } else {
+            console.error('❌ Server មិនដំណើរការ៖', err.message || err);
+            server.kill();
+            process.exit(1);
+        }
     });
-}, 2000); // រង់ចាំ ២ វិនាទីឱ្យ Server បើកសិន
-           
+}
+
+// ចាប់ផ្តើមតេស្តបន្ទាប់ពីរង់ចាំ ១ វិនាទី
+setTimeout(() => runTest(), 1000);

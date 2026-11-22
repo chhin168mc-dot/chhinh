@@ -1,51 +1,91 @@
-// បង្កើត Function សម្រាប់ Render កូដ HTML
-function generateHTMLView(data) {
-  const htmlContent = `
-    <!DOCTYPE html>
-    <html lang="km">
-    <head>
-      <meta charset="UTF-8">
-      <title>${data.title}</title>
-      <style>
-        body { font-family: Arial, sans-serif; background-color: #f4f4f9; padding: 20px; }
-        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        h1 { color: #2c3e50; }
-        p { color: #555; }
-      </style>
-    </head>
-    <body>
-      <div class="card">
-        <h1>${data.heading}</h1>
-        <p>${data.message}</p>
-        <p><strong>Status:</strong> ${data.status}</p>
-      </div>
-    </body>
-    </html>
-  `;
-  return htmlContent;
+const fs = require("fs");
+const path = require("path");
+
+// ប្តូរ URL នេះទៅជា API Backend របស់អ្នក (ឧទាហរណ៍ http://localhost:3000/api/health)
+const API_URL = process.env.API_URL || "https://jsonplaceholder.typicode.com/todos/1";
+
+async function testBackendApi(url) {
+  const start = Date.now();
+  try {
+    const response = await fetch(url);
+    const durationMs = Date.now() - start;
+    const rawBody = await response.text();
+
+    let formattedBody = rawBody;
+    try {
+      formattedBody = JSON.stringify(JSON.parse(rawBody), null, 2);
+    } catch {
+      // រក្សាជា text ធម្មតា បើមិនមែន JSON
+    }
+
+    return {
+      url,
+      isWorking: response.ok,
+      statusCode: response.status,
+      durationMs,
+      errorMessage: response.ok ? "None" : `HTTP ${response.status} (${response.statusText})`,
+      body: formattedBody.slice(0, 1500)
+    };
+  } catch (err) {
+    return {
+      url,
+      isWorking: false,
+      statusCode: "N/A",
+      durationMs: Date.now() - start,
+      errorMessage: err.message || String(err),
+      body: ""
+    };
+  }
 }
 
-// ទិន្នន័យ Test
-const testData = {
-  title: "HTML View Test Page",
-  heading: "សួស្តី! នេះជាការ Test HTML View ចេញពី JS",
-  message: "កូដ HTML ត្រូវ បានបង្កើត និងរៀបចំយ៉ាងត្រឹមត្រូវនៅក្នុង Node.js context!",
-  status: "Success (Passed)"
-};
+function buildReportHTML(result) {
+  const badgeText = result.isWorking ? "API ដំណើរការ (UP)" : "API មិនដំណើរការ (DOWN)";
+  const badgeColor = result.isWorking ? "#166534" : "#991b1b";
+  const badgeBg = result.isWorking ? "#dcfce7" : "#fee2e2";
 
-// ដំណើរការបង្កើត HTML
-const renderedHTML = generateHTMLView(testData);
-
-// បង្ហាញ HTML លទ្ធផលនៅលើ Console
-console.log("=== START GENERATED HTML VIEW ===");
-console.log(renderedHTML);
-console.log("=== END GENERATED HTML VIEW ===");
-
-// ពិនិត្យលក្ខខណ្ឌ Test (Assertion)
-if (renderedHTML.includes("<h1>សួស្តី! នេះជាការ Test HTML View ចេញពី JS</h1>")) {
-  console.log("✅ Test Passed: HTML generated correctly.");
-  process.exit(0);
-} else {
-  console.error("❌ Test Failed: HTML output missing expected tags.");
-  process.exit(1);
+  return `<!DOCTYPE html>
+<html lang="km">
+<head>
+  <meta charset="UTF-8" />
+  <title>API Test Report</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f4f6f9; padding: 30px; }
+    .card { max-width: 700px; margin: auto; background: #fff; padding: 24px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+    .badge { display: inline-block; padding: 6px 12px; border-radius: 6px; font-weight: bold; color: ${badgeColor}; background: ${badgeBg}; }
+    pre { background: #0f172a; color: #e2e8f0; padding: 14px; border-radius: 8px; overflow-x: auto; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>លទ្ធផល Test API Backend</h1>
+    <span class="badge">${badgeText}</span>
+    <p><strong>Endpoint:</strong> ${result.url}</p>
+    <p><strong>Status Code:</strong> ${result.statusCode} | <strong>Time:</strong> ${result.durationMs}ms</p>
+    <p><strong>Error / Note:</strong> ${result.errorMessage}</p>
+    <h3>Response Preview:</h3>
+    <pre>${result.body.replace(/</g, "&lt;")}</pre>
+  </div>
+</body>
+</html>`;
 }
+
+async function run() {
+  const result = await testBackendApi(API_URL);
+  const distDir = path.join(__dirname, "dist");
+  const outHtml = path.join(distDir, "index.html");
+
+  fs.mkdirSync(distDir, { recursive: true });
+  fs.writeFileSync(outHtml, buildReportHTML(result), "utf8");
+
+  if (result.isWorking) {
+    console.log(`✅ API ដំណើរការ (${result.statusCode}) - ${result.durationMs}ms`);
+    console.log(`📄 បានបង្កើត ${outHtml}`);
+    process.exit(0);
+  } else {
+    console.error(`❌ API មិនដំណើរការ: ${result.errorMessage}`);
+    console.log(`📄 បានបង្កើតរបាយការណ៍នៅ ${outHtml}`);
+    process.exit(1);
+  }
+}
+
+run();

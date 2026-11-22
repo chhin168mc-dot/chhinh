@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="km">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>API Backend Health Test</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f6f9;
+      margin: 0;
+      padding: 40px 20px;
+      display: flex;
+      justify-content: center;
+    }
+    .box {
+      background: #fff;
+      padding: 24px;
+      border-radius: 10px;
+      max-width: 640px;
+      width: 100%;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    }
+    .row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    input {
+      flex: 1;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+    button {
+      padding: 10px 18px;
+      background: #2563eb;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    button:hover {
+      background: #1d4ed8;
+    }
+    .status {
+      padding: 10px 14px;
+      border-radius: 6px;
+      font-weight: bold;
+      margin-bottom: 12px;
+    }
+    .ok { background: #dcfce7; color: #166534; }
+    .fail { background: #fee2e2; color: #991b1b; }
+    pre {
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 14px;
+      border-radius: 8px;
+      overflow-x: auto;
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <h2>Test API Backend Status</h2>
+    <div class="row">
+      <input id="apiUrl" type="text" value="https://jsonplaceholder.typicode.com/todos/1" />
+      <button onclick="checkApi()">Test API</button>
+    </div>
+    <div id="statusBox" class="status">រង់ចាំ Test...</div>
+    <pre id="output">{}</pre>
+  </div>
+
+  <script>
+    async function checkApi() {
+      const url = document.getElementById("apiUrl").value.trim();
+      const statusBox = document.getElementById("statusBox");
+      const output = document.getElementById("output");
+
+      statusBox.className = "status";
+      statusBox.textContent = "កំពុងពិនិត្យ API...";
+
+      try {
+        const start = Date.now();
+        const res = await fetch(url);
+        const ms = Date.now() - start;
+        const text = await res.text();
+
+        if (res.ok) {
+          statusBox.className = "status ok";
+          statusBox.textContent = `ដំណើរការ (HTTP ${res.status}) - ${ms}ms`;
+        } else {
+          statusBox.className = "status fail";
+          statusBox.textContent = `មិនដំណើរការ (HTTP ${res.status}) - ${ms}ms`;
+        }
+
+        try {
+          output.textContent = JSON.stringify(JSON.parse(text), null, 2);
+        } catch {
+          output.textContent = text;
+        }
+      } catch (err) {
+        statusBox.className = "status fail";
+        statusBox.textContent = `មិនដំណើរការ (Network / CORS Error): ${err.message}`;
+        output.textContent = err.stack || String(err);
+      }
+    }
+
+    checkApi();
+  </script>
+</body>
+</html>

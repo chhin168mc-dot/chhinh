@@ -1,0 +1,83 @@
+name: Build APK from ZIP
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - '*.zip'
+      - '.github/workflows/build.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Unzip project
+        run: |
+          ZIP=$(ls -t *.zip | head -n 1)
+          echo "Using $ZIP"
+          
+          # យកឈ្មោះ zip (គ្មាន .zip)
+          ZIP_NAME=$(basename "$ZIP" .zip)
+          echo "ZIP_NAME=$ZIP_NAME" >> "$GITHUB_ENV"
+          
+          mkdir -p work
+          unzip -q -o "$ZIP" -d work
+          
+          # រក folder ដែលមាន settings.gradle.kts
+          PROJ=$(dirname "$(find work -name settings.gradle.kts -not -path '*/node_modules/*' | head -n 1)")
+          echo "PROJECT_DIR=$PROJ" >> "$GITHUB_ENV"
+          echo "Project dir: $PROJ"
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+
+      - name: Build Debug APK
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: gradle assembleDebug --stacktrace
+
+      - name: Read app version
+        id: ver
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          # សាកមើល version ពី build.gradle.kts (បើគ្មាន ប្រើ 1.0.0)
+          VER=$(grep -oP 'val appVersion = "\K[^"]+' app/build.gradle.kts 2>/dev/null || echo "1.0.0")
+          echo "name=$VER" >> "$GITHUB_OUTPUT"
+          echo "Version: $VER"
+
+      - name: Prepare APK
+        run: |
+          cp "${{ env.PROJECT_DIR }}/app/build/outputs/apk/debug/app-debug.apk" "${{ env.ZIP_NAME }}.apk"
+          ls -lh "${{ env.ZIP_NAME }}.apk"
+
+      - name: Upload APK (Actions → Artifacts)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ZIP_NAME }}-apk
+          path: ${{ env.ZIP_NAME }}.apk
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.ver.outputs.name }}
+          name: ${{ env.ZIP_NAME }} ${{ steps.ver.outputs.name }}
+          files: ${{ env.ZIP_NAME }}.apk
+          make_latest: true
+          generate_release_notes: true

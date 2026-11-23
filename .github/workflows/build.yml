@@ -1,11 +1,7 @@
-name: Build APK from ZIP
+name: Build and publish test app
 
 on:
   push:
-    branches: [ main ]
-    paths:
-      - '*.zip'
-      - '.github/workflows/build.yml'
   workflow_dispatch:
 
 permissions:
@@ -15,69 +11,113 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Unzip project
+      # Takes the newest .zip of the repository and unpacks it into work/
+      - name: Extract project from ZIP
         run: |
           ZIP=$(ls -t *.zip | head -n 1)
           echo "Using $ZIP"
-          
-          # យកឈ្មោះ zip (គ្មាន .zip)
-          ZIP_NAME=$(basename "$ZIP" .zip)
-          echo "ZIP_NAME=$ZIP_NAME" >> "$GITHUB_ENV"
-          
+          echo "ZIP_NAME=$(basename "$ZIP" .zip)" >> "$GITHUB_ENV"
+
           mkdir -p work
           unzip -q -o "$ZIP" -d work
-          
-          # រក folder ដែលមាន settings.gradle.kts
-          PROJ=$(dirname "$(find work -name settings.gradle.kts -not -path '*/node_modules/*' | head -n 1)")
+
+          # The folder that has settings.gradle OR settings.gradle.kts
+          SETTINGS=$(find work \( -name settings.gradle -o -name settings.gradle.kts \) -not -path '*/node_modules/*' | head -n 1)
+          if [ -z "$SETTINGS" ]; then
+            echo "::error::No settings.gradle or settings.gradle.kts found inside $ZIP"
+            exit 1
+          fi
+          PROJ=$(dirname "$SETTINGS")
           echo "PROJECT_DIR=$PROJ" >> "$GITHUB_ENV"
           echo "Project dir: $PROJ"
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
+          distribution: temurin
           java-version: '17'
 
-      - name: Setup Android SDK
+      - name: Set up Android SDK
         uses: android-actions/setup-android@v4
 
-      - name: Setup Gradle
+      # Android Gradle Plugin 8.11 needs Gradle 8.13 or newer
+      - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.7'
+          gradle-version: "8.14.5"
 
       - name: Build Debug APK
         working-directory: ${{ env.PROJECT_DIR }}
         run: gradle assembleDebug --stacktrace
 
       - name: Read app version
-        id: ver
-        working-directory: ${{ env.PROJECT_DIR }}
+        id: version
         run: |
-          # សាកមើល version ពី build.gradle.kts (បើគ្មាន ប្រើ 1.0.0)
-          VER=$(grep -oP 'val appVersion = "\K[^"]+' app/build.gradle.kts 2>/dev/null || echo "1.0.0")
-          echo "name=$VER" >> "$GITHUB_OUTPUT"
-          echo "Version: $VER"
+          VERSION="$(grep -rhoP --include='build.gradle*' 'versionName\s*=?\s*"\K[^"]+' "$PROJECT_DIR" | head -n 1)"
+          VERSION="${VERSION:-unknown}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "App version: $VERSION"
 
       - name: Prepare APK
         run: |
-          cp "${{ env.PROJECT_DIR }}/app/build/outputs/apk/debug/app-debug.apk" "${{ env.ZIP_NAME }}.apk"
-          ls -lh "${{ env.ZIP_NAME }}.apk"
+          APK="$(find "$PROJECT_DIR" -path '*build/outputs/apk/debug/*.apk' | head -n 1)"
+          if [ -z "$APK" ]; then
+            echo "::error::No debug APK was built"
+            exit 1
+          fi
+          mkdir -p out
+          cp "$APK" out/UpdateTest.apk
+          ls -l out
 
       - name: Upload APK (Actions → Artifacts)
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.ZIP_NAME }}-apk
-          path: ${{ env.ZIP_NAME }}.apk
+          name: UpdateTest
+          path: out/UpdateTest.apk
 
+      # The APK of the update is a file of the "nightly" release, the feed points to it
       - name: Publish GitHub Release
+        if: github.ref_type == 'branch'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ steps.ver.outputs.name }}
-          name: ${{ env.ZIP_NAME }} ${{ steps.ver.outputs.name }}
-          files: ${{ env.ZIP_NAME }}.apk
-          make_latest: true
-          generate_release_notes: true
+          name: Update Test Nightly
+          prerelease: true
+          tag_name: nightly
+          body: |
+            Version ${{ steps.version.outputs.version }}, build ${{ github.run_number }}
+            Commit hash: ${{ github.sha }}
+          files: |
+            out/UpdateTest.apk
+
+      # "code" is the run number, the same number as the versionCode of the app
+      - name: Publish update feed
+        if: github.ref_type == 'branch'
+        shell: bash
+        run: |
+          set -euo pipefail
+          SIZE="$(stat -c %s out/UpdateTest.apk)"
+          URL="https://github.com/${{ github.repository }}/releases/download/nightly/UpdateTest.apk"
+          mkdir -p update
+          jq -n \
+            --argjson code "${{ github.run_number }}" \
+            --arg version "${{ steps.version.outputs.version }}" \
+            --arg created "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --arg body "Test build ${{ github.run_number }}. Commit: ${{ github.sha }}" \
+            --arg uri "$URL" \
+            --argjson size "$SIZE" \
+            '{code: $code, version: $version, created_at: $created,
+              default_cloud_drive: null, cloud_drives: [],
+              files: [{file_name: "UpdateTest.apk", uri: $uri, size: $size, arch: "all"}],
+              default_body: {language: "NULL", markdown: $body}, bodies: []}' \
+            > update/latest_version_md.json
+          cat update/latest_version_md.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add update/latest_version_md.json
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "Update feed for build ${{ github.run_number }}"
+          git pull --rebase origin ${{ github.ref_name }}
+          git push origin HEAD:${{ github.ref_name }}
